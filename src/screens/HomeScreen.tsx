@@ -83,8 +83,8 @@ export default function HomeScreen() {
     pulse();
   }, [pulse]);
 
-  const openTopic = (topicName: string) => {
-    nav.navigate('Lessons', { topicName });
+  const openTopic = (topicId: string) => {
+    nav.navigate('Lessons', { topicId });
   };
 
   return (
@@ -130,7 +130,7 @@ export default function HomeScreen() {
           keyExtractor={(i) => i.id}
           contentContainerStyle={{ padding: theme.spacing.md }}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.topicCard} onPress={() => openTopic(item.name)}>
+            <TouchableOpacity style={styles.topicCard} onPress={() => openTopic(item.id)}>
               <View>
                 <Text style={styles.topicTitle}>{item.name}</Text>
                 <Text style={styles.topicDesc}>{item.description || 'Description not available.'}</Text>

@@ -2,7 +2,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth } from '../lib/firebase'; // Added auth import
+import { auth } from '../lib/firebase';
 import { theme } from '../lib/theme';
 
 type Lesson = {
@@ -10,6 +10,8 @@ type Lesson = {
   title: string;
   xp: number;
   difficulty: string;
+  estimatedMinutes: number;
+  order: number;
 };
 
 type LessonsListRouteParams = {
@@ -19,15 +21,12 @@ type LessonsListRouteParams = {
 
 type LessonsListScreenRouteProp = RouteProp<{ Lessons: LessonsListRouteParams }, 'Lessons'>;
 
-// New authenticated fetch helper
 async function fetchWithAuth(url: string) {
   const user = auth.currentUser;
   if (!user) {
     throw new Error('User not authenticated.');
   }
-
   const idToken = await user.getIdToken();
-
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -35,24 +34,21 @@ async function fetchWithAuth(url: string) {
       'Authorization': `Bearer ${idToken}`,
     },
   });
-
   if (!response.ok) {
     throw new Error('API request failed.');
   }
-
   return response.json();
 }
 
 async function fetchLessonsFromApi(topicId: string): Promise<Lesson[]> {
-  // Use fetchWithAuth for an authenticated API call
   const data = await fetchWithAuth(`https://skillsphere-backend-uur2.onrender.com/lessons/${topicId}`);
-  return data.lessons; // Assuming the response has a `lessons` array
+  return data;
 }
 
 export default function LessonsListScreen() {
   const nav = useNavigation<any>();
   const route = useRoute<LessonsListScreenRouteProp>();
-  const { topicName, topicId } = route.params;
+  const { topicName, topicId } = route.params || {};
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -77,9 +73,7 @@ export default function LessonsListScreen() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [topicId]);
 
   return (
@@ -100,7 +94,7 @@ export default function LessonsListScreen() {
           keyExtractor={(l) => l.id}
           contentContainerStyle={{ padding: theme.spacing.md }}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => nav.navigate('Lesson', { topicId: item.id })}>
+            <TouchableOpacity style={styles.card} onPress={() => nav.navigate('Lesson', { lessonData: item })}>
               <View>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 <Text style={styles.cardSubtitle}>
