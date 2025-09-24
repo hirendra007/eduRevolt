@@ -51,10 +51,10 @@
       "FIREBASE_PROJECT_ID": "skillsphere-yuvaai",
       "FIREBASE_STORAGE_BUCKET": "skillsphere-yuvaai.firebasestorage.app",
       "FIREBASE_MESSAGING_SENDER_ID": "584997285974",
-      "FIREBASE_APP_ID": "1:44582320803:web:ddf5167b3dc9af1eeddd16",
+      "FIREBASE_APP_ID": "1:584997285974:web:9908f3883b4be57f928bf7",
       "WEB_GOOGLE_CLIENT_ID": "584997285974-8guqg3gi6in9u98blk291vj61h80ma6i.apps.googleusercontent.com",
       "IOS_GOOGLE_CLIENT_ID": "584997285974-d2hstqqt0jukeggf6htdnem6r0i6bl21.apps.googleusercontent.com",
-      "ANDROID_GOOGLE_CLIENT_ID": "44582320803-hnebbn67usjgj1veg2v5tva0hiolvgod.apps.googleusercontent.com"
+      "ANDROID_GOOGLE_CLIENT_ID": "584997285974-rmbk2ku8be37iffg5m4u2gu3rufi4ful.apps.googleusercontent.comw"
     }
   }
 }
