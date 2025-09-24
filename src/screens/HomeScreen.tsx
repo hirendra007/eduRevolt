@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Animated, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { auth } from '../lib/firebase'; // Ensure you have this import
 import { theme } from '../lib/theme';
 
 type Topic = {
@@ -11,12 +12,33 @@ type Topic = {
   description: string;
 };
 
-async function fetchTopicsFromApi(): Promise<Topic[]> {
-  const response = await fetch('https://skillsphere-backend-uur2.onrender.com/topics');
-  if (!response.ok) {
-    throw new Error('Network response was not ok');
+// This is the fetch function that includes the Authorization header
+async function fetchWithAuth(url: string) {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('User not authenticated.');
   }
-  const data: Topic[] = await response.json();
+
+  const idToken = await user.getIdToken();
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`, // The ID token is sent here
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('API request failed.');
+  }
+
+  return response.json();
+}
+
+async function fetchTopicsFromApi(): Promise<Topic[]> {
+  // Use the authenticated fetch function here
+  const data: Topic[] = await fetchWithAuth('https://skillsphere-backend-uur2.onrender.com/topics');
   return data;
 }
 
