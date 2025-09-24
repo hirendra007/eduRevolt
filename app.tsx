@@ -9,6 +9,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.root}>
+        {/* Changed barStyle to a string literal for type safety */}
         <StatusBar barStyle="dark-content" backgroundColor={theme.colors.surface} />
         <NavigationContainer>
           <AppNavigator />

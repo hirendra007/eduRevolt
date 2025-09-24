@@ -38,21 +38,22 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
     "extra": {
-      "FIREBASE_API_KEY": "AIzaSyDpFV-OUBDWXVJqhbyzjT8Nu_ZDyq2rqQU",
-      "FIREBASE_AUTH_DOMAIN": "skillsphere-956e8.firebaseapp.com",
-      "FIREBASE_PROJECT_ID": "skillsphere-956e8",
-      "FIREBASE_STORAGE_BUCKET": "skillsphere-956e8.firebasestorage.app",
-      "FIREBASE_MESSAGING_SENDER_ID": "44582320803",
+      "FIREBASE_API_KEY": "AIzaSyCXvoF7suAoyW9uDPDy6K3T4xjZP523QKo",
+      "FIREBASE_AUTH_DOMAIN": "skillsphere-yuvaai.firebaseapp.com",
+      "FIREBASE_PROJECT_ID": "skillsphere-yuvaai",
+      "FIREBASE_STORAGE_BUCKET": "skillsphere-yuvaai.firebasestorage.app",
+      "FIREBASE_MESSAGING_SENDER_ID": "584997285974",
       "FIREBASE_APP_ID": "1:44582320803:web:ddf5167b3dc9af1eeddd16",
-      "WEB_GOOGLE_CLIENT_ID": "44582320803-07qqiqnvco7mg9qs4s85ns9kbe3dumd3.apps.googleusercontent.com",
-      "IOS_GOOGLE_CLIENT_ID": "44582320803-pfcsj74nrg8o3nabf0cn8ap88v8km46j.apps.googleusercontent.com",
+      "WEB_GOOGLE_CLIENT_ID": "584997285974-8guqg3gi6in9u98blk291vj61h80ma6i.apps.googleusercontent.com",
+      "IOS_GOOGLE_CLIENT_ID": "584997285974-d2hstqqt0jukeggf6htdnem6r0i6bl21.apps.googleusercontent.com",
       "ANDROID_GOOGLE_CLIENT_ID": "44582320803-hnebbn67usjgj1veg2v5tva0hiolvgod.apps.googleusercontent.com"
     }
   }
