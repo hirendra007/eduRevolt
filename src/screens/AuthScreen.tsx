@@ -18,10 +18,10 @@ export default function AuthScreen() {
 
   // Use expo-auth-session Google provider
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: Constants.manifest?.extra?.WEB_GOOGLE_CLIENT_ID,
-    // The Google provider automatically handles the different client IDs for each platform.
-    // The clientId property is now the universal key.
-    // The old properties like expoClientId, iosClientId, etc. are deprecated.
+    // Safely access properties with nullish coalescing operators
+    iosClientId: Constants.expoConfig?.extra?.IOS_GOOGLE_CLIENT_ID,
+    androidClientId: Constants.expoConfig?.extra?.ANDROID_GOOGLE_CLIENT_ID,
+    webClientId: Constants.expoConfig?.extra?.WEB_GOOGLE_CLIENT_ID,
   });
 
   // Email auth state
@@ -53,7 +53,6 @@ export default function AuthScreen() {
           } catch (e) {
             console.log('Failed to write user doc', e);
           }
-          // Navigate to main app
           // @ts-ignore
           nav.reset({ index: 0, routes: [{ name: 'Main' }] });
         } catch (err) {
@@ -110,8 +109,8 @@ export default function AuthScreen() {
 
   const handleGoogle = async () => {
     try {
-      // If client ids are not configured, prompt fallback
-      if (!Constants.manifest?.extra?.WEB_GOOGLE_CLIENT_ID) {
+      // Safely check for the web client ID with nullish coalescing
+      if (!Constants.expoConfig?.extra?.WEB_GOOGLE_CLIENT_ID) {
         Alert.alert('Not configured', 'Google Sign-in is not configured. Proceeding in demo mode.');
         // @ts-ignore
         nav.reset({ index: 0, routes: [{ name: 'Main' }] });
