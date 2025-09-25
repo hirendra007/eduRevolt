@@ -92,7 +92,6 @@ export default function TopicScreen() {
             <TouchableOpacity style={styles.card} onPress={() => openTopic(item.id)}>
               <View>
                 <Text style={styles.cardTitle}>{item.name}</Text>
-                <Text style={styles.cardSubtitle}>{item.description || 'Description not available.'}</Text>
               </View>
               <Text style={styles.chev}>›</Text>
             </TouchableOpacity>

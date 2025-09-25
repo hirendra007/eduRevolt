@@ -3,13 +3,22 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Animated, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth } from '../lib/firebase'; // Ensure you have this import
+import { auth } from '../lib/firebase';
 import { theme } from '../lib/theme';
 
 type Topic = {
   id: string;
   name: string;
   description: string;
+};
+
+type UserProfile = {
+  userId: string;
+  totalXp: number;
+  completedLessons: string[];
+  currentStreak: number;
+  lastActivityDate: string;
+  name?: string; 
 };
 
 // This is the fetch function that includes the Authorization header
@@ -37,15 +46,20 @@ async function fetchWithAuth(url: string) {
 }
 
 async function fetchTopicsFromApi(): Promise<Topic[]> {
-  // Use the authenticated fetch function here
   const data: Topic[] = await fetchWithAuth('https://skillsphere-backend-uur2.onrender.com/topics');
+  return data;
+}
+
+async function fetchUserProfile(): Promise<UserProfile> {
+  const data: UserProfile = await fetchWithAuth('https://skillsphere-backend-uur2.onrender.com/user-profile');
   return data;
 }
 
 export default function HomeScreen() {
   const nav = useNavigation<any>();
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -54,22 +68,22 @@ export default function HomeScreen() {
       setLoading(true);
       try {
         const fetchedTopics = await fetchTopicsFromApi();
-        if (!cancelled && fetchedTopics) {
+        const fetchedUserProfile = await fetchUserProfile();
+        if (!cancelled && fetchedTopics && fetchedUserProfile) {
           setTopics(fetchedTopics);
+          setUserProfile(fetchedUserProfile);
         }
       } catch (e: unknown) {
         if (e instanceof Error) {
-          console.log('Could not fetch topics:', e.message);
+          console.log('Could not fetch data:', e.message);
         } else {
-          console.log('Could not fetch topics:', e);
+          console.log('Could not fetch data:', e);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const pulse = useCallback(() => {
@@ -83,16 +97,26 @@ export default function HomeScreen() {
     pulse();
   }, [pulse]);
 
-  const openTopic = (topicId: string) => {
-    nav.navigate('Lessons', { topicId });
+  const openTopic = (topicId: string, topicName: string) => {
+    nav.navigate('Lessons', { topicId, topicName });
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator style={{ marginTop: 20 }} color={theme.colors.primary} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hi, Learner 👋</Text>
-          <Text style={styles.sub}>170 XP • 🔥 3-day streak</Text>
+          <Text style={styles.greeting}>Hi, {userProfile?.name || 'Learner'} 👋</Text>
+          <Text style={styles.sub}>
+            {userProfile?.totalXp || 0} XP • 🔥 {userProfile?.currentStreak || 0}-day streak
+          </Text>
         </View>
         <TouchableOpacity style={styles.profileBtn} onPress={() => nav.navigate('Profile')}>
           <View style={styles.avatarPlaceholder} />
@@ -106,9 +130,9 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.startBtn}
             onPress={() =>
-              nav.navigate('Lesson', {
-                topicName: 'Finance',
-                lessonId: 'budgeting-101',
+              nav.navigate('Lessons', {
+                topicId: '8j9lpFqRsnAdwAeCtzZV', // This is the ID for the 'Finance' topic from your backend data
+                topicName: 'Indian Law',
               })
             }
           >
@@ -122,24 +146,19 @@ export default function HomeScreen() {
         <Text style={styles.sectionAction}>See all</Text>
       </View>
 
-      {loading ? (
-        <ActivityIndicator style={{ marginTop: 20 }} color={theme.colors.primary} />
-      ) : (
-        <FlatList
-          data={topics}
-          keyExtractor={(i) => i.id}
-          contentContainerStyle={{ padding: theme.spacing.md }}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.topicCard} onPress={() => openTopic(item.id)}>
-              <View>
-                <Text style={styles.topicTitle}>{item.name}</Text>
-                <Text style={styles.topicDesc}>{item.description || 'Description not available.'}</Text>
-              </View>
-              <Text style={styles.chev}>›</Text>
-            </TouchableOpacity>
-          )}
-        />
-      )}
+      <FlatList
+        data={topics}
+        keyExtractor={(i) => i.id}
+        contentContainerStyle={{ padding: theme.spacing.md }}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.topicCard} onPress={() => openTopic(item.id, item.name)}>
+            <View>
+              <Text style={styles.topicTitle}>{item.name}</Text>
+            </View>
+            <Text style={styles.chev}>›</Text>
+          </TouchableOpacity>
+        )}
+      />
     </SafeAreaView>
   );
 }

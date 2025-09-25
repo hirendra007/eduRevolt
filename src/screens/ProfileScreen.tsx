@@ -135,7 +135,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t('user')}</Text>
+        <Text style={styles.title}>{t('Profile')}</Text>
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={{ color: theme.colors.onPrimary, fontWeight: '600' }}>{t('logout')}</Text>
         </TouchableOpacity>
@@ -176,7 +176,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('completedLessons')}</Text>
+        <Text style={styles.sectionTitle}>{t('Completed Lessons')}</Text>
         <FlatList
           data={userProfileData.completedLessons}
           keyExtractor={(item, index) => `${item}-${index}`}
