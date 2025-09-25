@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { theme } from '../lib/theme';
 import AuthScreen from '../screens/AuthScreen';
+import LanguageSelectionScreen from '../screens/LanguageSelectionScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderBoardScreen';
 import LessonScreen from '../screens/LessonScreen';
@@ -44,6 +45,7 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Auth" component={AuthScreen} />
+      <Stack.Screen name="LanguageSelect" component={LanguageSelectionScreen} />
       <Stack.Screen name="Main" component={MainTabs} />
       <Stack.Screen name="Lessons" component={LessonsListScreen} />
       <Stack.Screen name="Lesson" component={LessonScreen} />

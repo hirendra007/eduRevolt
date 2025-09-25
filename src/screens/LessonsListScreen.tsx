@@ -2,9 +2,10 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../contexts/LanguageContext';
 import { auth } from '../lib/firebase';
+import { translateBatch } from '../lib/language';
 import { theme } from '../lib/theme';
-
 type Lesson = {
   id: string;
   title: string;
@@ -20,7 +21,6 @@ type LessonsListRouteParams = {
 };
 
 type LessonsListScreenRouteProp = RouteProp<{ Lessons: LessonsListRouteParams }, 'Lessons'>;
-
 async function fetchWithAuth(url: string) {
   const user = auth.currentUser;
   if (!user) {
@@ -44,13 +44,16 @@ async function fetchLessonsFromApi(topicId: string): Promise<Lesson[]> {
   const data = await fetchWithAuth(`https://skillsphere-backend-uur2.onrender.com/lessons/${topicId}`);
   return data;
 }
-
 export default function LessonsListScreen() {
   const nav = useNavigation<any>();
   const route = useRoute<LessonsListScreenRouteProp>();
   const { topicName, topicId } = route.params || {};
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(false);
+  const { t, currentLanguage } = useLanguage();
+
+  // Localized versions of lesson fields for display
+  const [displayLessons, setDisplayLessons] = useState<Lesson[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,13 +79,36 @@ export default function LessonsListScreen() {
     return () => { cancelled = true; };
   }, [topicId]);
 
+  // Translate lesson titles and difficulty for display when language is not English
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!lessons.length) { setDisplayLessons([]); return; }
+      if (currentLanguage === 'en') { setDisplayLessons(lessons); return; }
+      const texts: string[] = [];
+      lessons.forEach(l => {
+        texts.push(l.title);
+        texts.push(l.difficulty);
+      });
+      const translated = await translateBatch(texts, currentLanguage);
+      if (cancelled) return;
+      const mapped: Lesson[] = lessons.map((l, idx) => ({
+        ...l,
+        title: translated[idx * 2] ?? l.title,
+        difficulty: translated[idx * 2 + 1] ?? l.difficulty,
+      }));
+      setDisplayLessons(mapped);
+    })();
+    return () => { cancelled = true; };
+  }, [lessons, currentLanguage]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => nav.goBack()} style={{ paddingRight: 10 }}>
-          <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: theme.typography.body }}>‹ Back</Text>
+          <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: theme.typography.body }}>‹ {t('back')}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>{topicName || 'Lessons'}</Text>
+        <Text style={styles.title}>{topicName || t('lessons')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -90,7 +116,7 @@ export default function LessonsListScreen() {
         <ActivityIndicator style={{ marginTop: 20 }} color={theme.colors.primary} />
       ) : (
         <FlatList
-          data={lessons}
+          data={displayLessons}
           keyExtractor={(l) => l.id}
           contentContainerStyle={{ padding: theme.spacing.md }}
           renderItem={({ item }) => (
@@ -98,7 +124,7 @@ export default function LessonsListScreen() {
               <View>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 <Text style={styles.cardSubtitle}>
-                  {item.xp} XP • {item.difficulty}
+                  {item.xp} {t('xp')} • {item.difficulty}
                 </Text>
               </View>
               <Text style={styles.chev}>›</Text>
@@ -109,6 +135,7 @@ export default function LessonsListScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },

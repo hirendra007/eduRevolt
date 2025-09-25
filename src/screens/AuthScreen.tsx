@@ -54,13 +54,13 @@ export default function AuthScreen() {
             console.log('Failed to write user doc', e);
           }
           // @ts-ignore
-          nav.reset({ index: 0, routes: [{ name: 'Main' }] });
+          nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
         } catch (err) {
           console.warn('Firebase sign in failed', err);
           Alert.alert('Sign-in failed', 'Could not sign in with Google. Continuing in demo mode.');
           // fallback to demo
           // @ts-ignore
-          nav.reset({ index: 0, routes: [{ name: 'Main' }] });
+          nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
         }
       }
     })();
@@ -98,7 +98,7 @@ export default function AuthScreen() {
       }
       await persistUserDoc(userCred.user);
       // @ts-ignore
-      nav.reset({ index: 0, routes: [{ name: 'Main' }] });
+      nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
     } catch (e: any) {
       console.log('Email auth error', e.message || e);
       Alert.alert('Authentication failed', e.message || 'Unable to authenticate');
@@ -113,7 +113,7 @@ export default function AuthScreen() {
       if (!Constants.expoConfig?.extra?.WEB_GOOGLE_CLIENT_ID) {
         Alert.alert('Not configured', 'Google Sign-in is not configured. Proceeding in demo mode.');
         // @ts-ignore
-        nav.reset({ index: 0, routes: [{ name: 'Main' }] });
+        nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
         return;
       }
       await promptAsync();
@@ -126,7 +126,7 @@ export default function AuthScreen() {
   const handleContinueDemo = () => {
     // Demo fallback
     // @ts-ignore
-    nav.reset({ index: 0, routes: [{ name: 'Main' }] });
+    nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
   };
 
   return (
