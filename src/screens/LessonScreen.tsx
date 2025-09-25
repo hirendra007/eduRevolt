@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../contexts/LanguageContext';
 import { auth } from '../lib/firebase';
+import { translateLesson } from '../lib/language';
 import { theme } from '../lib/theme';
 import { useTTS } from '../lib/tts';
 
@@ -196,9 +197,9 @@ export default function LessonScreen() {
   const route = useRoute<LessonScreenRouteProp>();
   const nav = useNavigation<any>();
   const { lessonData } = route.params;
-  const [lesson, setLesson] = useState<LessonType | null>(lessonData);
-  const [contentIndex, setContentIndex] = useState(0);
+  const [lesson, setLesson] = useState<LessonType | null>(null);
   const [assessmentResult, setAssessmentResult] = useState<AssessmentResponse | null>(null);
+  const [contentIndex, setContentIndex] = useState(0);
   const { t, languageConfig, currentLanguage } = useLanguage();
   const { speak, stop, isPlaying: ttsIsPlaying } = useTTS();
 
@@ -256,6 +257,36 @@ export default function LessonScreen() {
       setContentIndex(0);
     }
   };
+  
+  // New useEffect to handle initial lesson data and translation
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Use lessonData from params to set initial state
+      if (lessonData && !lessonData.content) {
+        // If only ID is passed, fetch the full lesson
+        const fetchedLesson = await fetchLessonById(lessonData.id);
+        if (cancelled) return;
+        if (currentLanguage !== 'en') {
+          const translated = await translateLesson(fetchedLesson, currentLanguage);
+          setLesson(translated);
+        } else {
+          setLesson(fetchedLesson);
+        }
+      } else {
+        // If full lesson data is passed, translate it
+        if (currentLanguage !== 'en') {
+          const translated = await translateLesson(lessonData, currentLanguage);
+          if (!cancelled) {
+            setLesson(translated);
+          }
+        } else {
+          setLesson(lessonData);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [lessonData, currentLanguage]);
 
   if (!lesson) {
     return (

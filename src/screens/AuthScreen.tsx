@@ -2,8 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Google from 'expo-auth-session/providers/google';
 import Constants from 'expo-constants';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -16,18 +17,17 @@ WebBrowser.maybeCompleteAuthSession();
 export default function AuthScreen() {
   const nav = useNavigation();
 
-  // Use expo-auth-session Google provider
   const [request, response, promptAsync] = Google.useAuthRequest({
-    // Safely access properties with nullish coalescing operators
     iosClientId: Constants.expoConfig?.extra?.IOS_GOOGLE_CLIENT_ID,
     androidClientId: Constants.expoConfig?.extra?.ANDROID_GOOGLE_CLIENT_ID,
     webClientId: Constants.expoConfig?.extra?.WEB_GOOGLE_CLIENT_ID,
   });
 
-  // Email auth state
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rePassword, setRePassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -35,13 +35,11 @@ export default function AuthScreen() {
       if (response?.type === 'success' && response.authentication) {
         const { idToken, accessToken } = response.authentication as any;
         try {
-          // Exchange tokens for Firebase credential
           const credential = GoogleAuthProvider.credential(idToken, accessToken);
           const userCred = await signInWithCredential(auth, credential);
           const user = userCred.user;
-          // Persist basic user doc (idempotent)
           try {
-            await setDoc(doc(db, 'users', user.uid), {
+            await setDoc(doc(db, 'userProfiles', user.uid), {
               name: user.displayName || null,
               email: user.email || null,
               photoURL: user.photoURL || null,
@@ -58,7 +56,6 @@ export default function AuthScreen() {
         } catch (err) {
           console.warn('Firebase sign in failed', err);
           Alert.alert('Sign-in failed', 'Could not sign in with Google. Continuing in demo mode.');
-          // fallback to demo
           // @ts-ignore
           nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
         }
@@ -66,10 +63,13 @@ export default function AuthScreen() {
     })();
   }, [response, nav]);
 
-  const persistUserDoc = async (user: any) => {
+  const persistUserDoc = async (user: any, userName: string) => {
     try {
-      await setDoc(doc(db, 'users', user.uid), {
-        name: user.displayName || null,
+      if (user.displayName !== userName) {
+        await updateProfile(user, { displayName: userName });
+      }
+      await setDoc(doc(db, 'userProfiles', user.uid), {
+        name: user.displayName || userName,
         email: user.email || null,
         photoURL: user.photoURL || null,
         points: 0,
@@ -85,18 +85,28 @@ export default function AuthScreen() {
   const handleEmailAuth = async () => {
     setLoading(true);
     try {
-      if (!email || !password) {
-        Alert.alert('Missing fields', 'Please enter email and password');
-        setLoading(false);
-        return;
-      }
-      let userCred: any;
       if (mode === 'signup') {
-        userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        if (!name || !email || !password || !rePassword) {
+          Alert.alert('Missing fields', 'Please fill in all fields.');
+          setLoading(false);
+          return;
+        }
+        if (password !== rePassword) {
+          Alert.alert('Password mismatch', 'Passwords do not match.');
+          setLoading(false);
+          return;
+        }
+        const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await persistUserDoc(userCred.user, name);
       } else {
-        userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+        if (!email || !password) {
+          Alert.alert('Missing fields', 'Please enter email and password');
+          setLoading(false);
+          return;
+        }
+        const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+        await persistUserDoc(userCred.user, userCred.user.displayName || 'User');
       }
-      await persistUserDoc(userCred.user);
       // @ts-ignore
       nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
     } catch (e: any) {
@@ -109,7 +119,6 @@ export default function AuthScreen() {
 
   const handleGoogle = async () => {
     try {
-      // Safely check for the web client ID with nullish coalescing
       if (!Constants.expoConfig?.extra?.WEB_GOOGLE_CLIENT_ID) {
         Alert.alert('Not configured', 'Google Sign-in is not configured. Proceeding in demo mode.');
         // @ts-ignore
@@ -124,13 +133,13 @@ export default function AuthScreen() {
   };
 
   const handleContinueDemo = () => {
-    // Demo fallback
     // @ts-ignore
     nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <LinearGradient colors={[theme.colors.background, theme.colors.surfaceVariant]} style={StyleSheet.absoluteFillObject} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Ionicons name="school" size={72} color={theme.colors.primary} />
@@ -149,8 +158,14 @@ export default function AuthScreen() {
           </View>
 
           <View style={styles.form}>
+            {mode === 'signup' && (
+              <TextInput placeholder="Name" autoCapitalize="words" style={styles.input} value={name} onChangeText={setName} />
+            )}
             <TextInput placeholder="Email" keyboardType="email-address" autoCapitalize="none" style={styles.input} value={email} onChangeText={setEmail} />
             <TextInput placeholder="Password" secureTextEntry style={styles.input} value={password} onChangeText={setPassword} />
+            {mode === 'signup' && (
+              <TextInput placeholder="Re-enter Password" secureTextEntry style={styles.input} value={rePassword} onChangeText={setRePassword} />
+            )}
 
             <TouchableOpacity style={styles.authButton} onPress={handleEmailAuth} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.authButtonText}>{mode === 'signin' ? 'Sign in' : 'Create account'}</Text>}
