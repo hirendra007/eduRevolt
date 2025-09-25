@@ -6,12 +6,14 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../lib/theme';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const auth = getAuth();
 const db = getFirestore();
 
 export default function ProfileScreen() {
   const nav = useNavigation<any>();
+  const { t, currentLanguage } = useLanguage();
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,8 +59,7 @@ export default function ProfileScreen() {
     try {
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, { name: tempName }, { merge: true });
-      // Fixed: Explicitly type 'prev' to match the state's type
-      setUserData((prev: any) => ({ ...prev, name: tempName })); 
+      setUserData((prev: any) => ({ ...prev, name: tempName }));
       Alert.alert('Success', 'Profile updated!');
     } catch (e) {
       console.error('Failed to update profile:', e);
@@ -87,9 +88,9 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
+        <Text style={styles.title}>{t('user')}</Text>
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={{ color: theme.colors.muted, fontWeight: '600' }}>Logout</Text>
+          <Text style={{ color: theme.colors.muted, fontWeight: '600' }}>{t('submit')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -108,7 +109,7 @@ export default function ProfileScreen() {
           </View>
         ) : (
           <View style={styles.editRow}>
-            <Text style={styles.userName}>{userData?.name || 'User'}</Text>
+            <Text style={styles.userName}>{userData?.name || t('user')}</Text>
             <TouchableOpacity onPress={() => setIsEditing(true)}>
               <Ionicons name="pencil-outline" size={24} color={theme.colors.primary} />
             </TouchableOpacity>
@@ -118,17 +119,17 @@ export default function ProfileScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{userData?.points || 0}</Text>
-            <Text style={styles.statLabel}>XP</Text>
+            <Text style={styles.statLabel}>{t('xp')}</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>🔥 {userData?.streakDays || 0}</Text>
-            <Text style={styles.statLabel}>Streak</Text>
+            <Text style={styles.statLabel}>{t('streak')}</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Badges</Text>
+        <Text style={styles.sectionTitle}>{t('badges')}</Text>
         <View style={{ flexDirection: 'row', paddingTop: 8, flexWrap: 'wrap' }}>
           {userData?.badges?.map((b: string) => (
             <View key={b} style={styles.badge}>
@@ -136,6 +137,13 @@ export default function ProfileScreen() {
             </View>
           ))}
         </View>
+      </View>
+
+      <View style={[styles.section, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+        <Text style={styles.sectionTitle}>{t('currentLanguageLabel')}: {currentLanguage.toUpperCase()}</Text>
+        <TouchableOpacity style={styles.logoutBtn} onPress={() => nav.navigate('LanguageSelect') as any}>
+          <Text style={{ color: theme.colors.muted, fontWeight: '600' }}>{t('changeLanguage')}</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

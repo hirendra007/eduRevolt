@@ -1,9 +1,15 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import React, { useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../contexts/LanguageContext';
 import { auth } from '../lib/firebase';
+import { translateLesson } from '../lib/language';
 import { theme } from '../lib/theme';
+import { useTTS } from '../lib/tts';
 
 type LessonContent = {
   type: 'paragraph' | 'image' | 'quiz';
@@ -69,9 +75,32 @@ async function fetchWithAuth(url: string, method = 'GET', body?: object) {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!response.ok) {
-    throw new Error('API request failed.');
+    let details = '';
+    try {
+      details = await response.text();
+    } catch {}
+    throw new Error(`API request failed. ${response.status} ${response.statusText}${details ? ' - ' + details : ''}`);
   }
   return response.json();
+}
+
+async function fetchLessonById(lessonId: string): Promise<LessonType> {
+  const base = 'https://skillsphere-backend-uur2.onrender.com';
+  const candidates = [
+    `${base}/lessons/${lessonId}`,
+    `${base}/lesson/${lessonId}`,
+  ];
+  let lastError: unknown = null;
+  for (const url of candidates) {
+    try {
+      const data = await fetchWithAuth(url);
+      return data as LessonType;
+    } catch (e) {
+      lastError = e;
+      // try next
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Failed to fetch lesson by ID');
 }
 
 type Answer = { questionId: string; selectedOptionId: string };
@@ -89,11 +118,13 @@ type AssessmentViewProps = {
   assessment: LessonType['assessment'];
   onSubmit: (answers: Answer[]) => Promise<void>;
   assessmentResult: AssessmentResponse | null;
+  onNextLesson?: () => void;
 };
 
-function AssessmentView({ assessment, onSubmit, assessmentResult }: AssessmentViewProps) {
+function AssessmentView({ assessment, onSubmit, assessmentResult, onNextLesson }: AssessmentViewProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const { t, languageConfig } = useLanguage();
 
   const handleSelectOption = (questionId: string, selectedOptionId: string) => {
     if (submitted) return;
@@ -102,7 +133,7 @@ function AssessmentView({ assessment, onSubmit, assessmentResult }: AssessmentVi
 
   const handleSubmit = async () => {
     if (Object.keys(answers).length !== assessment.questions.length) {
-      Alert.alert('Incomplete', 'Please answer all questions before submitting.');
+      Alert.alert(t('incomplete'), t('answerAllQuestions'));
       return;
     }
     setSubmitted(true);
@@ -116,29 +147,29 @@ function AssessmentView({ assessment, onSubmit, assessmentResult }: AssessmentVi
   if (assessmentResult) {
     return (
       <View style={styles.assessmentResultContainer}>
-        <Text style={styles.assessmentResultTitle}>Assessment Complete!</Text>
-        <Text style={styles.assessmentResultText}>Status: {assessmentResult.status}</Text>
-        <Text style={styles.assessmentResultText}>Score: {assessmentResult.score}%</Text>
-        <Text style={styles.assessmentResultText}>XP Earned: {assessmentResult.xpEarned}</Text>
+        <Text style={[styles.assessmentResultTitle, { fontSize: languageConfig.fontSize.h1 }]}>{t('assessmentComplete')}</Text>
+        <Text style={[styles.assessmentResultText, { fontSize: languageConfig.fontSize.body }]}>{t('status')}: {assessmentResult.status}</Text>
+        <Text style={[styles.assessmentResultText, { fontSize: languageConfig.fontSize.body }]}>{t('score')}: {assessmentResult.score}%</Text>
+        <Text style={[styles.assessmentResultText, { fontSize: languageConfig.fontSize.body }]}>{t('xpEarned')}: {assessmentResult.xpEarned}</Text>
 
         {assessmentResult.status === 'passed' && assessmentResult.nextLessonId && (
-          <TouchableOpacity 
-            style={styles.nextLessonButton} 
-            onPress={() => console.log('Navigating to next lesson:', assessmentResult.nextLessonId)}
+          <TouchableOpacity
+            style={styles.nextLessonButton}
+            onPress={onNextLesson}
           >
-            <Text style={styles.nextLessonButtonText}>Next Lesson</Text>
+            <Text style={[styles.nextLessonButtonText, { fontSize: languageConfig.fontSize.body }]}>{t('nextLesson')}</Text>
           </TouchableOpacity>
         )}
 
         {assessmentResult.status === 'requires_review' && assessmentResult.remedialLesson && (
           <View style={styles.remedialCard}>
-            <Text style={styles.remedialTitle}>Remedial Lesson</Text>
-            <Text style={styles.remedialText}>{assessmentResult.remedialLesson.title}</Text>
-            <TouchableOpacity 
-              style={styles.reviewButton} 
+            <Text style={[styles.remedialTitle, { fontSize: languageConfig.fontSize.h2 }]}>{t('remedialLesson')}</Text>
+            <Text style={[styles.remedialText, { fontSize: languageConfig.fontSize.body }]}>{assessmentResult.remedialLesson.title}</Text>
+            <TouchableOpacity
+              style={styles.reviewButton}
               onPress={() => console.log('Starting remedial lesson:', assessmentResult.remedialLesson)}
             >
-              <Text style={styles.reviewButtonText}>Review</Text>
+              <Text style={[styles.reviewButtonText, { fontSize: languageConfig.fontSize.body }]}>{t('review')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -148,13 +179,13 @@ function AssessmentView({ assessment, onSubmit, assessmentResult }: AssessmentVi
 
   return (
     <View style={styles.assessmentContainer}>
-      <Text style={styles.assessmentTitle}>Assessment</Text>
+      <Text style={[styles.assessmentTitle, { fontSize: languageConfig.fontSize.h1 }]}>{t('assessment')}</Text>
       <FlatList
         data={assessment.questions}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <View style={styles.questionCard}>
-            <Text style={styles.questionText}>{item.questionText}</Text>
+            <Text style={[styles.questionText, { fontSize: languageConfig.fontSize.body }]}>{item.questionText}</Text>
             {item.options.map(option => (
               <TouchableOpacity
                 key={option.id}
@@ -166,7 +197,7 @@ function AssessmentView({ assessment, onSubmit, assessmentResult }: AssessmentVi
                 ]}
                 onPress={() => handleSelectOption(item.id, option.id)}
               >
-                <Text style={styles.optionText}>{option.text}</Text>
+                <Text style={[styles.optionText, { fontSize: languageConfig.fontSize.body }]}>{option.text}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -174,7 +205,7 @@ function AssessmentView({ assessment, onSubmit, assessmentResult }: AssessmentVi
       />
       {!submitted && (
         <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-          <Text style={styles.submitBtnText}>Submit Assessment</Text>
+          <Text style={[styles.submitBtnText, { fontSize: languageConfig.fontSize.body }]}>{t('submitAssessment')}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -188,9 +219,33 @@ export default function LessonScreen() {
   const [lesson, setLesson] = useState<LessonType | null>(lessonData);
   const [contentIndex, setContentIndex] = useState(0);
   const [assessmentResult, setAssessmentResult] = useState<AssessmentResponse | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [loadingLesson, setLoadingLesson] = useState<boolean>(!('content' in (lessonData as any)));
+  const [lessonError, setLessonError] = useState<string | null>(null);
+  const { t, languageConfig, currentLanguage } = useLanguage();
+  const { speak, stop, isPlaying: ttsIsPlaying } = useTTS();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (lesson && (!lesson.content || lesson.content.length === 0 || !lesson.assessment)) {
+          setLoadingLesson(true);
+          setLessonError(null);
+          const fullLesson = await fetchLessonById(lesson.id);
+          const localized = await translateLesson(fullLesson, currentLanguage);
+          setLesson(localized);
+        }
+      } catch (e) {
+        console.log('Failed to load lesson details', e);
+        setLessonError(e instanceof Error ? e.message : 'Failed to load lesson');
+      } finally {
+        setLoadingLesson(false);
+      }
+    })();
+  }, [lesson?.id, currentLanguage]);
 
   const handleNextContent = () => {
-    if (!lesson || contentIndex >= lesson.content.length) {
+    if (!lesson || !lesson.content || contentIndex >= lesson.content.length) {
       return;
     }
     setContentIndex(contentIndex + 1);
@@ -203,13 +258,33 @@ export default function LessonScreen() {
         setAssessmentResult(result);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to submit assessment.');
+      Alert.alert(t('error'), t('submitAssessment'));
     }
   };
 
-  const handleNextLesson = () => {
+  const handlePlayAudio = async (text: string) => {
+    if (isPlaying) {
+      stop();
+      setIsPlaying(false);
+    } else {
+      await speak(text, currentLanguage);
+      setIsPlaying(true);
+      setTimeout(() => setIsPlaying(false), 100);
+    }
+  };
+
+
+  const handleNextLesson = async () => {
     if (assessmentResult?.status === 'passed' && assessmentResult.nextLessonId) {
-      nav.navigate('Lesson', { lessonData: { id: assessmentResult.nextLessonId } });
+      try {
+        const nextLessonData = await fetchLessonById(assessmentResult.nextLessonId);
+        const localized = await translateLesson(nextLessonData, currentLanguage);
+        // push to create a new instance and avoid staying on the same screen data
+        nav.push('Lesson', { lessonData: localized });
+      } catch (err) {
+        console.log('Error fetching next lesson', err);
+        Alert.alert(t('error'), t('failedToLoadNextLesson'));
+      }
     }
     if (assessmentResult?.status === 'requires_review' && assessmentResult.remedialLesson) {
         // Here, you could set the lesson state to the remedial lesson
@@ -219,40 +294,72 @@ export default function LessonScreen() {
     }
   };
 
-  if (!lesson) {
+
+  if (loadingLesson) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={styles.errorText}>Lesson data not found. Please go back and try again.</Text>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={theme.colors.primary} />
+          <Text style={{ color: theme.colors.muted, marginTop: 12 }}>{t('loading')}</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
-  const showAssessment = contentIndex >= lesson.content.length;
-  const isLastContentBlock = contentIndex === lesson.content.length - 1;
-  const currentContent = lesson.content[contentIndex];
+  if (!lesson || !lesson.content) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={[styles.errorText, { fontSize: languageConfig.fontSize.body }]}>
+          {lessonError || t('lessonNotFound')}
+        </Text>
+        <View style={{ alignItems: 'center', marginTop: 12 }}>
+          <TouchableOpacity onPress={() => nav.goBack()} style={[styles.nextBtn, { paddingHorizontal: 20 }]}>
+            <Text style={styles.nextBtnText}>{t('back')}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const contentLength = lesson.content?.length ?? 0;
+  const showAssessment = contentIndex >= contentLength;
+  const isLastContentBlock = contentIndex === contentLength - 1;
+  const currentContent = lesson.content?.[contentIndex];
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => nav.goBack()} style={{ paddingRight: 10 }}>
-          <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: theme.typography.body }}>‹ Back</Text>
+          <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: languageConfig.fontSize.body }}>‹ {t('back')}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>{lesson.title}</Text>
+        <Text style={[styles.title, { fontSize: languageConfig.fontSize.h1 }]}>{lesson.title}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {showAssessment ? (
-        <AssessmentView assessment={lesson.assessment} onSubmit={handleSubmitAssessment} assessmentResult={assessmentResult} />
+        <AssessmentView assessment={lesson.assessment} onSubmit={handleSubmitAssessment} assessmentResult={assessmentResult} onNextLesson={handleNextLesson} />
       ) : (
         <View style={styles.contentContainer}>
           <View style={styles.contentCard}>
             {currentContent && currentContent.type === 'paragraph' && (
-              <Text style={styles.paragraphText}>{currentContent.text}</Text>
+              <>
+                <Text style={[styles.paragraphText, { fontSize: languageConfig.fontSize.body, fontFamily: languageConfig.fontFamily }]}>
+                  {currentContent.text}
+                </Text>
+                <TouchableOpacity style={styles.audioButton} onPress={() => handlePlayAudio(currentContent.text || '')}>
+                  <Ionicons name={isPlaying ? 'stop-circle' : 'play-circle'} size={32} color={theme.colors.primary} />
+                  <Text style={[styles.audioButtonText, { fontSize: languageConfig.fontSize.small }]}>
+                    {isPlaying ? t('stopAudio') : t('playAudio')}
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
             {/* Add more content types here */}
           </View>
           <TouchableOpacity style={styles.nextBtn} onPress={handleNextContent}>
-            <Text style={styles.nextBtnText}>{isLastContentBlock ? 'Start Assessment' : 'Next'}</Text>
+            <Text style={[styles.nextBtnText, { fontSize: languageConfig.fontSize.body }]}>
+              {isLastContentBlock ? t('startAssessment') : t('next')}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -268,6 +375,8 @@ const styles = StyleSheet.create({
   contentContainer: { flex: 1, padding: theme.spacing.lg, justifyContent: 'space-between' },
   contentCard: { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg, padding: theme.spacing.lg },
   paragraphText: { fontSize: theme.typography.body, lineHeight: 24, color: theme.colors.text },
+  audioButton: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: theme.spacing.md },
+  audioButtonText: { color: theme.colors.primary, marginLeft: 8 },
   nextBtn: { backgroundColor: theme.colors.primary, padding: theme.spacing.md, borderRadius: theme.radii.md, alignItems: 'center' },
   nextBtnText: { color: 'white', fontWeight: 'bold' },
   
