@@ -41,6 +41,7 @@ type UserProfile = {
   completedLessons: string[];
   currentStreak: number;
   lastActivityDate: string;
+  name?: string;
 };
 
 type LessonTitleMap = {
@@ -79,7 +80,6 @@ export default function ProfileScreen() {
         const profileData: UserProfile = await fetchWithAuth('https://skillsphere-backend-uur2.onrender.com/user-profile');
         const allLessonTitles = await fetchAllLessons();
         
-        // Fetch name from Firestore 'users' collection
         const userDocRef = auth.currentUser?.uid ? doc(db, 'userProfiles', auth.currentUser.uid) : null;
         const userDocSnap = userDocRef ? await getDoc(userDocRef) : null;
         const fetchedUserName = userDocSnap?.exists() ? userDocSnap.data().name : (auth.currentUser?.displayName || 'User');
@@ -105,7 +105,6 @@ export default function ProfileScreen() {
     }
     setIsEditing(false);
     try {
-      // Update the user's name in the Firestore 'users' collection
       await setDoc(doc(db, 'userProfiles', auth.currentUser.uid), { name: userName }, { merge: true });
       Alert.alert('Success', 'Profile updated!');
     } catch (e) {
@@ -176,7 +175,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('Completed Lessons')}</Text>
+        <Text style={styles.sectionTitle}>{t('completedLessons')}</Text>
         <FlatList
           data={userProfileData.completedLessons}
           keyExtractor={(item, index) => `${item}-${index}`}
@@ -186,10 +185,10 @@ export default function ProfileScreen() {
         />
       </View>
 
-      <View style={[styles.section, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+      <View style={[styles.section, styles.languageSection]}>
         <Text style={styles.sectionTitle}>{t('currentLanguageLabel')}: {currentLanguage.toUpperCase()}</Text>
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => nav.navigate('LanguageSelect')}>
-          <Text style={{ color: theme.colors.onPrimary, fontWeight: '600' }}>{t('changeLanguage')}</Text>
+        <TouchableOpacity style={styles.languageButton} onPress={() => nav.navigate('LanguageSelect')}>
+          <Text style={styles.languageButtonText}>{t('changeLanguage')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -215,4 +214,21 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: theme.typography.h2, fontWeight: '800', marginBottom: theme.spacing.md },
   badge: { backgroundColor: theme.colors.chip, padding: theme.spacing.sm, borderRadius: theme.radii.md, marginRight: theme.spacing.sm, marginBottom: theme.spacing.sm },
   completedLessonText: { fontSize: theme.typography.body, color: theme.colors.text, marginTop: theme.spacing.sm, paddingHorizontal: theme.spacing.md },
+
+  languageSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap'
+  },
+  languageButton: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.primary,
+  },
+  languageButtonText: {
+    color: theme.colors.onPrimary,
+    fontWeight: '600',
+  }
 });

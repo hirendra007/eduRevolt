@@ -143,7 +143,7 @@ export default function AuthScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Ionicons name="school" size={72} color={theme.colors.primary} />
-          <Text style={styles.title}>LearnFast</Text>
+          <Text style={styles.title}>Skill Bridge</Text>
           <Text style={styles.subtitle}>Short lessons, real impact — 5 minutes a day.</Text>
 
           <TouchableOpacity style={styles.googleButton} onPress={handleGoogle} disabled={!request}>
@@ -175,10 +175,6 @@ export default function AuthScreen() {
               <Text style={{ color: theme.colors.primary }}>{mode === 'signin' ? 'New here? Create an account' : 'Already have an account? Sign in'}</Text>
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity style={styles.demoButton} onPress={handleContinueDemo}>
-            <Text style={{ color: theme.colors.text }}>Continue in Demo Mode</Text>
-          </TouchableOpacity>
 
           <Text style={styles.footer}>By continuing you agree to our Terms & Privacy</Text>
         </ScrollView>
