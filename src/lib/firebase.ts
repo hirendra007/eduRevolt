@@ -1,33 +1,34 @@
 import Constants from 'expo-constants';
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { enableIndexedDbPersistence, getFirestore } from 'firebase/firestore';
+import { GoogleAuthProvider, initializeAuth } from 'firebase/auth';
+
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore';
+
+const extra = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
 
 const firebaseConfig = {
-  apiKey: Constants.manifest?.extra?.FIREBASE_API_KEY || '<FIREBASE_API_KEY>',
-  authDomain: Constants.manifest?.extra?.FIREBASE_AUTH_DOMAIN || '<FIREBASE_AUTH_DOMAIN>',
-  projectId: Constants.manifest?.extra?.FIREBASE_PROJECT_ID || '<FIREBASE_PROJECT_ID>',
-  storageBucket: Constants.manifest?.extra?.FIREBASE_STORAGE_BUCKET || '<FIREBASE_STORAGE_BUCKET>',
-  messagingSenderId: Constants.manifest?.extra?.FIREBASE_MESSAGING_SENDER_ID || '<SENDER_ID>',
-  appId: Constants.manifest?.extra?.FIREBASE_APP_ID || '<APP_ID>'
+  apiKey: extra.FIREBASE_API_KEY || "AIzaSyCXvoF7suAoyW9uDPDy6K3T4xjZP523QKo",
+  authDomain: extra.FIREBASE_AUTH_DOMAIN || "skillsphere-yuvaai.firebaseapp.com",
+  projectId: extra.FIREBASE_PROJECT_ID || "skillsphere-yuvaai",
+  storageBucket: extra.FIREBASE_STORAGE_BUCKET || "skillsphere-yuvaai.firebasestorage.app",
+  messagingSenderId: extra.FIREBASE_MESSAGING_SENDER_ID || "584997285974",
+  appId: extra.FIREBASE_APP_ID || "1:584997285974:web:9908f3883b4be57f928bf7",
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app);
 
-// Enable persistence where supported (best effort)
-(async function enablePersistence() {
-  try {
-    await enableIndexedDbPersistence(db as any);
-  } catch (e: unknown) { // Use 'unknown' type to catch the error
-    // Persistence not available (e.g., React Native environment that doesn't support indexeddb)
-    // Firestore native persistence is handled by SDK on React Native; this is a best-effort shim.
-    if (e instanceof Error) {
-      console.log('Firestore persistence not enabled:', e.message);
-    } else {
-      console.log('Firestore persistence not enabled:', e);
-    }
-  }
-})();
+// ✅ Auth with persistence (React Native)
+export const auth = initializeAuth(app, {
+});
+export const googleProvider = new GoogleAuthProvider();
+
+// ✅ Firestore with persistence
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});
