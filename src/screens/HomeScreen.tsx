@@ -19,9 +19,10 @@ type UserProfile = {
   currentStreak: number;
   lastActivityDate: string;
   name?: string; 
+  interests?: string[]; // Added for personalization
 };
 
-// This is the fetch function that includes the Authorization header
+// Helper for authenticated requests
 async function fetchWithAuth(url: string) {
   const user = auth.currentUser;
   if (!user) {
@@ -34,7 +35,7 @@ async function fetchWithAuth(url: string) {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`, // The ID token is sent here
+      'Authorization': `Bearer ${idToken}`,
     },
   });
 
@@ -46,12 +47,12 @@ async function fetchWithAuth(url: string) {
 }
 
 async function fetchTopicsFromApi(): Promise<Topic[]> {
-  const data: Topic[] = await fetchWithAuth('https://skillsphere-backend-uur2.onrender.com/topics');
+  const data: Topic[] = await fetchWithAuth('https://skillbridge-backend-2-gq5c.onrender.com/topics');
   return data;
 }
 
 async function fetchUserProfile(): Promise<UserProfile> {
-  const data: UserProfile = await fetchWithAuth('https://skillsphere-backend-uur2.onrender.com/user-profile');
+  const data: UserProfile = await fetchWithAuth('https://skillbridge-backend-2-gq5c.onrender.com/user-profile');
   return data;
 }
 
@@ -67,18 +68,17 @@ export default function HomeScreen() {
     (async () => {
       setLoading(true);
       try {
-        const fetchedTopics = await fetchTopicsFromApi();
-        const fetchedUserProfile = await fetchUserProfile();
-        if (!cancelled && fetchedTopics && fetchedUserProfile) {
+        const [fetchedTopics, fetchedUserProfile] = await Promise.all([
+          fetchTopicsFromApi(),
+          fetchUserProfile()
+        ]);
+        
+        if (!cancelled) {
           setTopics(fetchedTopics);
           setUserProfile(fetchedUserProfile);
         }
       } catch (e: unknown) {
-        if (e instanceof Error) {
-          console.log('Could not fetch data:', e.message);
-        } else {
-          console.log('Could not fetch data:', e);
-        }
+        console.log('Error fetching home data:', e);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -100,6 +100,18 @@ export default function HomeScreen() {
   const openTopic = (topicId: string, topicName: string) => {
     nav.navigate('Lessons', { topicId, topicName });
   };
+
+  // --- Personalization Logic ---
+  const myInterests = userProfile?.interests || [];
+  
+  // Find topics that match user interests (simple string matching)
+  const recommendedTopics = topics.filter(t => 
+    myInterests.some(interest => t.name.toLowerCase().includes(interest.toLowerCase()))
+  );
+
+  // If recommendations exist, show them. Otherwise show all topics.
+  const displayTopics = recommendedTopics.length > 0 ? recommendedTopics : topics;
+  const sectionTitle = recommendedTopics.length > 0 ? "Recommended For You" : "All Topics";
 
   if (loading) {
     return (
@@ -131,7 +143,7 @@ export default function HomeScreen() {
             style={styles.startBtn}
             onPress={() =>
               nav.navigate('Lessons', {
-                topicId: '8j9lpFqRsnAdwAeCtzZV', // This is the ID for the 'Finance' topic from your backend data
+                topicId: '8j9lpFqRsnAdwAeCtzZV',
                 topicName: 'Indian Law',
               })
             }
@@ -142,18 +154,28 @@ export default function HomeScreen() {
       </Animated.View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Topics</Text>
-        <Text style={styles.sectionAction}>See all</Text>
+        <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+        <TouchableOpacity onPress={() => nav.navigate('InterestSelection')}>
+           <Text style={styles.sectionAction}>Edit Interests</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
-        data={topics}
+        data={displayTopics}
         keyExtractor={(i) => i.id}
         contentContainerStyle={{ padding: theme.spacing.md }}
+        ListEmptyComponent={
+          <Text style={{ textAlign: 'center', color: theme.colors.muted, marginTop: 20 }}>
+            No topics found matching your interests.
+          </Text>
+        }
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.topicCard} onPress={() => openTopic(item.id, item.name)}>
             <View>
               <Text style={styles.topicTitle}>{item.name}</Text>
+              {item.description ? (
+                 <Text style={styles.topicDesc} numberOfLines={2}>{item.description}</Text>
+              ) : null}
             </View>
             <Text style={styles.chev}>›</Text>
           </TouchableOpacity>

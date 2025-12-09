@@ -31,38 +31,60 @@ async function fetchWithAuth(url: string) {
   return response.json();
 }
 
-// Function to fetch user names from the 'userProfiles' collection
+// Function to fetch user names from the 'users' collection
 async function fetchUserNames(uids: string[]): Promise<Map<string, string>> {
   const names = new Map<string, string>();
+  
+  // Create an array of promises to fetch user data in parallel
   const userPromises = uids.map(async (uid) => {
     // Check if uid is valid before fetching
     if (typeof uid === 'string' && uid) {
-      const userDoc = await getDoc(doc(db, 'userProfiles', uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.name) {
-          names.set(uid, userData.name);
+      try {
+        const userDoc = await getDoc(doc(db, 'users', uid)); // Updated collection to 'users'
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.name) {
+            names.set(uid, userData.name);
+          }
         }
+      } catch (error) {
+        console.warn(`Failed to fetch name for user ${uid}`, error);
       }
     }
   });
+
   await Promise.all(userPromises);
   return names;
 }
 
 async function fetchLeaderboardData(): Promise<LeaderboardEntry[]> {
-  const data: LeaderboardEntry[] = await fetchWithAuth('https://skillsphere-backend-uur2.onrender.com/leaderboard');
-  
-  // Get all UIDs from the leaderboard data
-  const uids = data.map(entry => entry.uid);
-  // Fetch user names from Firestore
-  const userNames = await fetchUserNames(uids);
+  try {
+    const data: any[] = await fetchWithAuth('https://skillbridge-backend-2-gq5c.onrender.com/leaderboard');
+    
+    if (!Array.isArray(data)) {
+        console.error("Leaderboard data is not an array:", data);
+        return [];
+    }
 
-  // Map the names to the leaderboard data
-  return data.map(entry => ({ 
-    ...entry, 
-    name: userNames.get(entry.uid) || `User ${entry.uid.substring(0, 4)}` 
-  }));
+    // Get all UIDs from the leaderboard data, filtering out any invalid entries
+    const uids = data
+        .filter(entry => entry && entry.uid)
+        .map(entry => entry.uid);
+
+    // Fetch user names from Firestore
+    const userNames = await fetchUserNames(uids);
+
+    // Map the names to the leaderboard data
+    return data.map(entry => ({ 
+      rank: entry.rank,
+      uid: entry.uid,
+      xp: entry.xp,
+      name: userNames.get(entry.uid) || `User ${entry.uid ? entry.uid.substring(0, 4) : 'Unknown'}` 
+    }));
+  } catch (error) {
+    console.error("Error in fetchLeaderboardData:", error);
+    return [];
+  }
 }
 
 export default function LeaderboardScreen() {
@@ -106,7 +128,7 @@ export default function LeaderboardScreen() {
       <View style={styles.header}><Text style={styles.title}>Leaderboard</Text></View>
       <FlatList
         data={leaderboardData}
-        keyExtractor={i => i.uid}
+        keyExtractor={i => i.uid || Math.random().toString()} // Fallback key
         contentContainerStyle={{ padding: theme.spacing.md }}
         renderItem={({ item, index }) => (
           <View style={[styles.row, index === 0 && styles.firstPlace]}>

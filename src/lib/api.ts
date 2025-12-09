@@ -1,5 +1,30 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { auth } from './firebase';
 
+export const API_URL = 'https://skillbridge-backend-2-gq5c.onrender.com';
+
+export async function fetchWithAuth(endpoint: string, method = 'GET', body?: object) {
+  const user = auth.currentUser;
+  if (!user) throw new Error('User not authenticated');
+
+  const token = await user.getIdToken();
+  
+  const res = await fetch(`${API_URL}${endpoint}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `API Error: ${res.status}`);
+  }
+
+  return res.json();
+}  
 // Helper to call a callable function by name. If Firebase Functions aren't configured, we return a simulated response.
 export async function callGradeQuiz(payload: any) {
   try {

@@ -79,15 +79,16 @@ async function fetchWithAuth(url: string, method = 'GET', body?: object) {
 }
 
 async function fetchLessonById(lessonId: string): Promise<LessonType> {
-  const data = await fetchWithAuth(`https://skillsphere-backend-uur2.onrender.com/lesson/${lessonId}`);
-  return data;
+  const data = await fetchWithAuth(`https://skillbridge-backend-2-gq5c.onrender.com/lesson/${lessonId}`);
+  // FIX: Force attach the ID from the parameter to ensure it's never undefined
+  return { ...data, id: lessonId };
 }
 
 type Answer = { questionId: string; selectedOptionId: string };
 
 async function submitAssessment(lessonId: string, answers: Answer[]): Promise<AssessmentResponse> {
   const data = await fetchWithAuth(
-    `https://skillsphere-backend-uur2.onrender.com/assessments/${lessonId}/submit`,
+    `https://skillbridge-backend-2-gq5c.onrender.com/assessments/${lessonId}/submit`,
     'POST',
     { answers }
   );

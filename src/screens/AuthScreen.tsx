@@ -5,11 +5,11 @@ import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth, db } from '../lib/firebase';
+import { fetchWithAuth } from '../lib/api'; // Make sure this helper exists as defined previously
+import { auth } from '../lib/firebase';
 import { theme } from '../lib/theme';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -30,85 +30,80 @@ export default function AuthScreen() {
   const [rePassword, setRePassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Helper to sync user data to your Hono backend
+  const syncUserToBackend = async (user: any, displayName?: string) => {
+    try {
+      await fetchWithAuth('/auth/sync', 'POST', {
+        email: user.email,
+        displayName: displayName || user.displayName || 'User',
+        photoURL: user.photoURL,
+      });
+    } catch (e) {
+      console.log('Backend sync warning:', e);
+      // We don't block navigation on sync error, but you might want to log it
+    }
+  };
+
   useEffect(() => {
     (async () => {
       if (response?.type === 'success' && response.authentication) {
+        setLoading(true);
         const { idToken, accessToken } = response.authentication as any;
         try {
+          // 1. Authenticate with Firebase Client SDK
           const credential = GoogleAuthProvider.credential(idToken, accessToken);
           const userCred = await signInWithCredential(auth, credential);
-          const user = userCred.user;
-          try {
-            await setDoc(doc(db, 'userProfiles', user.uid), {
-              name: user.displayName || null,
-              email: user.email || null,
-              photoURL: user.photoURL || null,
-              points: 0,
-              streakDays: 0,
-              createdAt: serverTimestamp(),
-              lastSeenAt: serverTimestamp()
-            }, { merge: true });
-          } catch (e) {
-            console.log('Failed to write user doc', e);
-          }
+          
+          // 2. Sync user to Backend
+          await syncUserToBackend(userCred.user);
+
+          // 3. Navigate
           // @ts-ignore
           nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
         } catch (err) {
           console.warn('Firebase sign in failed', err);
-          Alert.alert('Sign-in failed', 'Could not sign in with Google. Continuing in demo mode.');
-          // @ts-ignore
-          nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
+          Alert.alert('Sign-in failed', 'Could not sign in with Google.');
+        } finally {
+          setLoading(false);
         }
       }
     })();
   }, [response, nav]);
 
-  const persistUserDoc = async (user: any, userName: string) => {
-    try {
-      if (user.displayName !== userName) {
-        await updateProfile(user, { displayName: userName });
-      }
-      await setDoc(doc(db, 'userProfiles', user.uid), {
-        name: user.displayName || userName,
-        email: user.email || null,
-        photoURL: user.photoURL || null,
-        points: 0,
-        streakDays: 0,
-        createdAt: serverTimestamp(),
-        lastSeenAt: serverTimestamp()
-      }, { merge: true });
-    } catch (e) {
-      console.log('Failed to write user doc', e);
-    }
-  };
-
   const handleEmailAuth = async () => {
     setLoading(true);
     try {
       if (mode === 'signup') {
+        // Validation
         if (!name || !email || !password || !rePassword) {
-          Alert.alert('Missing fields', 'Please fill in all fields.');
-          setLoading(false);
-          return;
+          throw new Error('Please fill in all fields.');
         }
         if (password !== rePassword) {
-          Alert.alert('Password mismatch', 'Passwords do not match.');
-          setLoading(false);
-          return;
+          throw new Error('Passwords do not match.');
         }
+
+        // 1. Create User
         const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        await persistUserDoc(userCred.user, name);
+        
+        // 2. Update Profile locally
+        await updateProfile(userCred.user, { displayName: name });
+        
+        // 3. Sync to Backend
+        await syncUserToBackend(userCred.user, name);
+
       } else {
+        // Sign In
         if (!email || !password) {
-          Alert.alert('Missing fields', 'Please enter email and password');
-          setLoading(false);
-          return;
+          throw new Error('Please enter email and password');
         }
         const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
-        await persistUserDoc(userCred.user, userCred.user.displayName || 'User');
+        await syncUserToBackend(userCred.user);
       }
+
+      // Navigate on success
       // @ts-ignore
       nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
+
     } catch (e: any) {
       console.log('Email auth error', e.message || e);
       Alert.alert('Authentication failed', e.message || 'Unable to authenticate');
@@ -120,9 +115,7 @@ export default function AuthScreen() {
   const handleGoogle = async () => {
     try {
       if (!Constants.expoConfig?.extra?.WEB_GOOGLE_CLIENT_ID) {
-        Alert.alert('Not configured', 'Google Sign-in is not configured. Proceeding in demo mode.');
-        // @ts-ignore
-        nav.reset({ index: 0, routes: [{ name: 'LanguageSelect' }] });
+        Alert.alert('Configuration Error', 'Google Sign-in is not configured.');
         return;
       }
       await promptAsync();
@@ -146,7 +139,7 @@ export default function AuthScreen() {
           <Text style={styles.title}>Skill Bridge</Text>
           <Text style={styles.subtitle}>Short lessons, real impact — 5 minutes a day.</Text>
 
-          <TouchableOpacity style={styles.googleButton} onPress={handleGoogle} disabled={!request}>
+          <TouchableOpacity style={styles.googleButton} onPress={handleGoogle} disabled={!request || loading}>
             <Ionicons name="logo-google" size={20} color="#fff" />
             <Text style={styles.googleButtonText}>Continue with Google</Text>
           </TouchableOpacity>
@@ -159,22 +152,57 @@ export default function AuthScreen() {
 
           <View style={styles.form}>
             {mode === 'signup' && (
-              <TextInput placeholder="Name" autoCapitalize="words" style={styles.input} value={name} onChangeText={setName} />
+              <TextInput 
+                placeholder="Name" 
+                autoCapitalize="words" 
+                style={styles.input} 
+                value={name} 
+                onChangeText={setName} 
+              />
             )}
-            <TextInput placeholder="Email" keyboardType="email-address" autoCapitalize="none" style={styles.input} value={email} onChangeText={setEmail} />
-            <TextInput placeholder="Password" secureTextEntry style={styles.input} value={password} onChangeText={setPassword} />
+            <TextInput 
+              placeholder="Email" 
+              keyboardType="email-address" 
+              autoCapitalize="none" 
+              style={styles.input} 
+              value={email} 
+              onChangeText={setEmail} 
+            />
+            <TextInput 
+              placeholder="Password" 
+              secureTextEntry 
+              style={styles.input} 
+              value={password} 
+              onChangeText={setPassword} 
+            />
             {mode === 'signup' && (
-              <TextInput placeholder="Re-enter Password" secureTextEntry style={styles.input} value={rePassword} onChangeText={setRePassword} />
+              <TextInput 
+                placeholder="Re-enter Password" 
+                secureTextEntry 
+                style={styles.input} 
+                value={rePassword} 
+                onChangeText={setRePassword} 
+              />
             )}
 
             <TouchableOpacity style={styles.authButton} onPress={handleEmailAuth} disabled={loading}>
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.authButtonText}>{mode === 'signin' ? 'Sign in' : 'Create account'}</Text>}
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.authButtonText}>{mode === 'signin' ? 'Sign in' : 'Create account'}</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.switchMode} onPress={() => setMode(m => m === 'signin' ? 'signup' : 'signin')}>
-              <Text style={{ color: theme.colors.primary }}>{mode === 'signin' ? 'New here? Create an account' : 'Already have an account? Sign in'}</Text>
+              <Text style={{ color: theme.colors.primary }}>
+                {mode === 'signin' ? 'New here? Create an account' : 'Already have an account? Sign in'}
+              </Text>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity style={styles.demoButton} onPress={handleContinueDemo}>
+            <Text style={{ color: theme.colors.text }}>Continue in Demo Mode</Text>
+          </TouchableOpacity>
 
           <Text style={styles.footer}>By continuing you agree to our Terms & Privacy</Text>
         </ScrollView>

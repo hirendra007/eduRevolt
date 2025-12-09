@@ -1,39 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { getAuth, signOut } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, getDocs } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient'; // Needed for the fancy mentor button
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import { theme } from '../lib/theme';
+import { fetchWithAuth } from '../lib/api'; // Import from lib to avoid duplication
 
 const auth = getAuth();
-
-async function fetchWithAuth(url: string, method = 'GET', body?: object) {
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error('User not authenticated.');
-  }
-
-  const idToken = await user.getIdToken();
-
-  const response = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!response.ok) {
-    throw new Error('API request failed.');
-  }
-
-  return response.json();
-}
 
 type UserProfile = {
   userId: string;
@@ -42,24 +20,26 @@ type UserProfile = {
   currentStreak: number;
   lastActivityDate: string;
   name?: string;
+  isMentor?: boolean; // New for Phase 3
 };
 
 type LessonTitleMap = {
   [key: string]: string;
 };
 
+// Fetch all lesson titles from the backend to map IDs to Names
 async function fetchAllLessons(): Promise<LessonTitleMap> {
   const lessonTitles: LessonTitleMap = {};
   try {
-    const lessonsSnapshot = await getDocs(collection(db, 'lessons'));
-    lessonsSnapshot.forEach(doc => {
-      const lessonData = doc.data();
-      if (lessonData && lessonData.title) {
-        lessonTitles[doc.id] = lessonData.title;
+    const topics = await fetchWithAuth('/topics');
+    for (const topic of topics) {
+      const lessons = await fetchWithAuth(`/lessons/${topic.id}`);
+      for (const lesson of lessons) {
+        lessonTitles[lesson.id] = lesson.title;
       }
-    });
+    }
   } catch (error) {
-    console.error("Error fetching all lessons:", error);
+    console.error("Error fetching lesson titles:", error);
   }
   return lessonTitles;
 }
@@ -77,12 +57,21 @@ export default function ProfileScreen() {
     const fetchUserProfile = async () => {
       setLoading(true);
       try {
-        const profileData: UserProfile = await fetchWithAuth('https://skillsphere-backend-uur2.onrender.com/user-profile');
+        // 1. Fetch Stats from Backend (Now includes isMentor)
+        const profileData: UserProfile = await fetchWithAuth('/user-profile');
+        
+        // 2. Fetch Lesson Titles for mapping
         const allLessonTitles = await fetchAllLessons();
         
-        const userDocRef = auth.currentUser?.uid ? doc(db, 'userProfiles', auth.currentUser.uid) : null;
-        const userDocSnap = userDocRef ? await getDoc(userDocRef) : null;
-        const fetchedUserName = userDocSnap?.exists() ? userDocSnap.data().name : (auth.currentUser?.displayName || 'User');
+        // 3. Fetch Name directly from Firestore 'users' collection (Fallback)
+        let fetchedUserName = profileData.name || 'Learner';
+        if (auth.currentUser?.uid && !profileData.name) {
+          const userDocRef = doc(db, 'users', auth.currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            fetchedUserName = userDocSnap.data().name || auth.currentUser.displayName || 'User';
+          }
+        }
         
         setUserProfileData(profileData);
         setLessonTitles(allLessonTitles);
@@ -105,7 +94,8 @@ export default function ProfileScreen() {
     }
     setIsEditing(false);
     try {
-      await setDoc(doc(db, 'userProfiles', auth.currentUser.uid), { name: userName }, { merge: true });
+      // Update Name in Firestore
+      await setDoc(doc(db, 'users', auth.currentUser.uid), { name: userName }, { merge: true });
       Alert.alert('Success', 'Profile updated!');
     } catch (e) {
       console.error('Failed to update profile:', e);
@@ -116,10 +106,10 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      // Reset navigation state
       nav.reset({ index: 0, routes: [{ name: 'Auth' }] });
     } catch (e) {
       console.error('Logout failed:', e);
-      Alert.alert('Logout Failed', 'Please try again.');
     }
   };
 
@@ -134,63 +124,100 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t('Profile')}</Text>
+        <Text style={styles.title}>{t('user')}</Text>
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={{ color: theme.colors.onPrimary, fontWeight: '600' }}>{t('logout')}</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.profileCard}>
-        <View style={styles.avatarPlaceholder} />
-        {isEditing ? (
-          <View style={styles.editRow}>
-            <TextInput
-              style={styles.nameInput}
-              value={userName}
-              onChangeText={setUserName}
-            />
-            <TouchableOpacity onPress={handleUpdateProfile}>
-              <Ionicons name="checkmark-circle-outline" size={30} color={theme.colors.success} />
-            </TouchableOpacity>
+      <FlatList
+        data={userProfileData.completedLessons}
+        keyExtractor={(item, index) => `${item}-${index}`}
+        ListHeaderComponent={
+          <View>
+            {/* Profile Card */}
+            <View style={styles.profileCard}>
+              <View style={styles.avatarPlaceholder} />
+              
+              {/* Name Edit Logic */}
+              {isEditing ? (
+                <View style={styles.editRow}>
+                  <TextInput
+                    style={styles.nameInput}
+                    value={userName}
+                    onChangeText={setUserName}
+                  />
+                  <TouchableOpacity onPress={handleUpdateProfile}>
+                    <Ionicons name="checkmark-circle-outline" size={30} color={theme.colors.success} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.editRow}>
+                  <Text style={styles.userName}>{userName}</Text>
+                  <TouchableOpacity onPress={() => setIsEditing(true)}>
+                    <Ionicons name="pencil-outline" size={24} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              <Text style={styles.userEmail}>{auth.currentUser?.email || 'N/A'}</Text>
+              
+              <View style={styles.statsRow}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statValue}>{userProfileData.totalXp || 0}</Text>
+                  <Text style={styles.statLabel}>{t('xp')}</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statValue}>🔥 {userProfileData.currentStreak || 0}</Text>
+                  <Text style={styles.statLabel}>{t('streak')}</Text>
+                </View>
+              </View>
+
+              {/* --- PHASE 3: MENTORSHIP BUTTONS --- */}
+              <View style={{ width: '100%', marginTop: 20 }}>
+                {userProfileData.isMentor ? (
+                  <TouchableOpacity 
+                    style={styles.mentorBtn} 
+                    onPress={() => nav.navigate('MentorDashboard')}
+                  >
+                    <LinearGradient colors={[theme.colors.secondary, theme.colors.primary]} style={styles.gradientBtn}>
+                      <Ionicons name="briefcase" size={20} color="#fff" />
+                      <Text style={styles.mentorBtnText}>Mentor Dashboard</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity 
+                    style={styles.applyBtn} 
+                    onPress={() => nav.navigate('Become a Mentor')} // Points to ApplyMentorScreen via Drawer or Stack
+                  >
+                    <Text style={styles.applyText}>Become a Mentor</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {/* ----------------------------------- */}
+
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('completedLessons')}</Text>
+            </View>
           </View>
-        ) : (
-          <View style={styles.editRow}>
-            <Text style={styles.userName}>{userName}</Text>
-            <TouchableOpacity onPress={() => setIsEditing(true)}>
-              <Ionicons name="pencil-outline" size={24} color={theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
+        }
+        renderItem={({ item }) => (
+          <Text style={styles.completedLessonText}>- {lessonTitles[item] || item}</Text>
         )}
-        <Text style={styles.userEmail}>{auth.currentUser?.email || 'N/A'}</Text>
-        <View style={styles.statsRow}>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>{userProfileData.totalXp || 0}</Text>
-            <Text style={styles.statLabel}>{t('xp')}</Text>
+        ListFooterComponent={
+          <View style={[styles.section, styles.languageSection]}>
+            <Text style={styles.sectionTitle}>{t('currentLanguageLabel')}: {currentLanguage.toUpperCase()}</Text>
+            <TouchableOpacity style={styles.languageButton} onPress={() => nav.navigate('LanguageSelect')}>
+              <Text style={styles.languageButtonText}>{t('changeLanguage')}</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>🔥 {userProfileData.currentStreak || 0}</Text>
-            <Text style={styles.statLabel}>{t('streak')}</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('completedLessons')}</Text>
-        <FlatList
-          data={userProfileData.completedLessons}
-          keyExtractor={(item, index) => `${item}-${index}`}
-          renderItem={({ item }) => (
-            <Text style={styles.completedLessonText}>- {lessonTitles[item] || item}</Text>
-          )}
-        />
-      </View>
-
-      <View style={[styles.section, styles.languageSection]}>
-        <Text style={styles.sectionTitle}>{t('currentLanguageLabel')}: {currentLanguage.toUpperCase()}</Text>
-        <TouchableOpacity style={styles.languageButton} onPress={() => nav.navigate('LanguageSelect')}>
-          <Text style={styles.languageButtonText}>{t('changeLanguage')}</Text>
-        </TouchableOpacity>
-      </View>
+        }
+        ListEmptyComponent={
+            <Text style={{color: theme.colors.muted, textAlign: 'center', marginTop: 10}}>No lessons completed yet.</Text>
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -212,14 +239,14 @@ const styles = StyleSheet.create({
   statLabel: { color: theme.colors.muted, marginTop: 4, fontSize: theme.typography.small },
   section: { marginTop: theme.spacing.lg },
   sectionTitle: { fontSize: theme.typography.h2, fontWeight: '800', marginBottom: theme.spacing.md },
-  badge: { backgroundColor: theme.colors.chip, padding: theme.spacing.sm, borderRadius: theme.radii.md, marginRight: theme.spacing.sm, marginBottom: theme.spacing.sm },
   completedLessonText: { fontSize: theme.typography.body, color: theme.colors.text, marginTop: theme.spacing.sm, paddingHorizontal: theme.spacing.md },
-
   languageSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap'
+    flexWrap: 'wrap',
+    marginTop: 30,
+    paddingBottom: 20
   },
   languageButton: {
     paddingVertical: theme.spacing.xs,
@@ -230,5 +257,12 @@ const styles = StyleSheet.create({
   languageButtonText: {
     color: theme.colors.onPrimary,
     fontWeight: '600',
-  }
+  },
+  
+  // Mentor Button Styles
+  mentorBtn: { borderRadius: 12, overflow: 'hidden', marginBottom: 10 },
+  gradientBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  mentorBtnText: { color: '#fff', fontWeight: 'bold', marginLeft: 8, fontSize: 16 },
+  applyBtn: { borderWidth: 1, borderColor: theme.colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 10 },
+  applyText: { color: theme.colors.primary, fontWeight: 'bold', fontSize: 16 }
 });
