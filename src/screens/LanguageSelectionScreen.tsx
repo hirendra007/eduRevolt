@@ -20,8 +20,11 @@ export default function LanguageSelectionScreen() {
     setIsLoading(true);
     try {
       await setLanguage(selectedLanguage);
-      // Navigate to the main app
-      navigation.replace('Main');
+      
+      // *** THE CRITICAL CORRECTION: Navigate to the next onboarding step ***
+      // We use replace to prevent the user from backing up to the language selection screen.
+      navigation.replace('InterestSelection'); 
+      
     } catch (error) {
       console.error('Error setting language:', error);
     } finally {

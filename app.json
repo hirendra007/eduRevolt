@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.hirendra007.skilsSphere"
     },
     "web": {
       "output": "static",
@@ -54,7 +55,11 @@
       "FIREBASE_APP_ID": "1:584997285974:web:9908f3883b4be57f928bf7",
       "WEB_GOOGLE_CLIENT_ID": "584997285974-8guqg3gi6in9u98blk291vj61h80ma6i.apps.googleusercontent.com",
       "IOS_GOOGLE_CLIENT_ID": "584997285974-d2hstqqt0jukeggf6htdnem6r0i6bl21.apps.googleusercontent.com",
-      "ANDROID_GOOGLE_CLIENT_ID": "584997285974-rmbk2ku8be37iffg5m4u2gu3rufi4ful.apps.googleusercontent.comw"
+      "ANDROID_GOOGLE_CLIENT_ID": "584997285974-rmbk2ku8be37iffg5m4u2gu3rufi4ful.apps.googleusercontent.comw",
+      "router": {},
+      "eas": {
+        "projectId": "0c693b2d-6dae-4cd3-9a6d-46b1d235daad"
+      }
     }
   }
 }
